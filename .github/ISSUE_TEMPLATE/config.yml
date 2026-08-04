@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 프로젝트 README
+    url: https://github.com/kisia-ict-security-crew/cloud-attack-path-visualization
+    about: 프로젝트 목표와 현재 연구 방향을 확인합니다.
