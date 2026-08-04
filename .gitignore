@@ -1,3 +1,15 @@
 # venv
 .venv
 venv
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Variable files containing secrets
+*.tfvars
+*.tfvars.json
+
+# Keep example variable files
+!*.tfvars.example
+!terraform.tfvars.example
