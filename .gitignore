@@ -4,6 +4,10 @@ venv
 
 # .terraform/
 .terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
 
 # Terraform state files
 *.tfstate
