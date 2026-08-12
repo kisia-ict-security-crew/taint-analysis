@@ -1,0 +1,12 @@
+aws_region         = "ap-northeast-2"
+name_prefix       = "taint-analysis"
+alert_email       = "security-team@example.com"
+honeytoken_name   = "/honeytoken/prod/legacy-api-key"
+log_retention_days = 90
+
+tags = {
+  Project     = "taint-analysis"
+  ManagedBy   = "Terraform"
+  Purpose     = "security-research"
+  Environment = "lab"
+}
