@@ -1,0 +1,4 @@
+location     = "koreacentral"
+project_name = "taintlab"
+
+honey_secret_value = "API-KEY"
