@@ -41,12 +41,46 @@ variable "log_retention_days" {
   description = "CloudWatch Logs retention period."
   type        = number
   default     = 90
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.log_retention_days)
+    error_message = "log_retention_days must be a retention value supported by CloudWatch Logs."
+  }
 }
 
 variable "allow_log_bucket_destroy" {
   description = "Allow Terraform to delete the log bucket and its objects. Enable only during teardown."
   type        = bool
   default     = false
+}
+
+variable "allow_experiment_bucket_destroy" {
+  description = "Allow Terraform to delete objects in disposable experiment and Athena result buckets during teardown."
+  type        = bool
+  default     = true
+}
+
+variable "data_seed_key" {
+  description = "Object key of the data honeytoken. The object contains synthetic data only."
+  type        = string
+  default     = "decoy/customer-export.csv"
+}
+
+variable "critical_object_key" {
+  description = "Object key used as the manually classified D-Taint source. The object contains synthetic data only."
+  type        = string
+  default     = "classified/customer-records.csv"
+}
+
+variable "monthly_budget_usd" {
+  description = "Optional monthly AWS cost budget. Set to 0 to disable AWS Budgets resources."
+  type        = number
+  default     = 20
+
+  validation {
+    condition     = var.monthly_budget_usd >= 0
+    error_message = "monthly_budget_usd must be zero or greater."
+  }
 }
 
 variable "tags" {

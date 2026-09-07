@@ -1,6 +1,6 @@
 # AWS 로그 수집 환경과 IaC 허니토큰
 
-CloudTrail 관리 이벤트를 암호화된 S3 버킷과 CloudWatch Logs에 수집하고, 미끼 AWS Secrets Manager 비밀에 대한 조회 시도를 EventBridge가 탐지해 SNS로 알립니다.
+CloudTrail 관리 이벤트와 연구 버킷의 S3 데이터 이벤트를 암호화된 S3 버킷과 CloudWatch Logs에 수집합니다. Secrets Manager 미끼와 S3 Data 씨앗 접근은 EventBridge가 선별하여 SNS로 알립니다. A→B→C 역할 체인, R4 권한 부여 대상, R3 자격증명 발급 대상, Athena 분석 기반도 함께 생성합니다.
 
 > 이 구성은 실제 IAM 액세스 키나 유효한 자격 증명을 만들지 않습니다. 허니토큰 값은 Terraform 상태에 남기지 않기 위해 IaC에서 생성하지 않습니다.
 
@@ -16,6 +16,16 @@ AWS API activity
 
 Secrets Manager
   └─ /honeytoken/prod/legacy-api-key (빈 secret container)
+
+Experiment plane
+  ├─ critical / staging / egress-sim private buckets
+  ├─ synthetic Data seed and synthetic critical object
+  ├─ ActorA → PivotB → PivotC role chain
+  ├─ GrantTarget role for R4
+  └─ lab-only IAM user for R3
+
+Analysis plane
+  └─ Glue database + Athena workgroup + encrypted result bucket
 ```
 
 ## 파일 구조
@@ -25,11 +35,20 @@ aws/
 ├─ versions.tf             # Terraform/AWS provider 버전
 ├─ variables.tf            # 입력 변수와 검증
 ├─ main.tf                 # KMS, S3, CloudTrail, CloudWatch
+├─ storage.tf              # 실험 버킷, Data 씨앗, 중요 데이터
+├─ iam_experiment.tf       # A→B→C, R3/R4 실험 신원
+├─ analytics.tf            # Glue, Athena, 분석 결과 버킷
+├─ budget.tf               # 월 비용 예산
 ├─ honeytoken.tf           # 미끼 비밀, 탐지 규칙, SNS 경보
 ├─ outputs.tf              # 생성 리소스 식별자
 ├─ terraform.tfvars.example
 ├─ README.md               # 배포·시험·운영 안내
-└─ STUDY.md                # 스터디 정리
+├─ STUDY.md                # 스터디 정리
+├─ RUNBOOK.md              # 배포 후 프로브와 로그 확인 절차
+├─ DECISIONS.md            # 구현된 C-/D-Taint 의미론과 평가 경계
+├─ THEORY_TODO.md          # 통계·범위 확장을 위한 후속 과제
+├─ analysis/               # CEM adapter, taint engine, 테스트, 결과 집계
+└─ scripts/                # B0/S1-a/S2 실행·검증·분석기
 ```
 
 ## 사전 준비
@@ -50,6 +69,12 @@ terraform validate
 terraform plan -out=tfplan
 terraform apply tfplan
 ```
+
+`terraform apply`는 실제 AWS 자원을 생성하고 비용을 발생시킵니다. 적용 전에 반드시 전용 연구 계정인지 `aws sts get-caller-identity`로 확인하세요. 이 저장소에서 자동으로 apply하지는 않습니다.
+
+배포 후 실험 절차는 [RUNBOOK.md](RUNBOOK.md)를 따릅니다.
+
+C-/D-Taint 핵심 실험은 `scripts/invoke-background.ps1`, `scripts/invoke-s1a.ps1`, `scripts/invoke-s2.ps1` 순서로 실행하고 각 manifest를 `verify-run.ps1` 및 `analyze-run.ps1`에 전달합니다. 판정 의미론과 한계는 [DECISIONS.md](DECISIONS.md), 상세 명령은 [analysis/README.md](analysis/README.md)를 참조하세요.
 
 배포 후 SNS가 보내는 구독 확인 메일에서 **Confirm subscription**을 눌러야 이메일 경보가 전달됩니다.
 
@@ -83,7 +108,7 @@ fields @timestamp, eventName, userIdentity.arn, sourceIPAddress, requestParamete
 
 ## 보안·운영 주의사항
 
-- EventBridge 규칙은 `GetSecretValue`와 `DescribeSecret`을 모두 탐지합니다. 정상 운영 주체가 접근하지 않도록 미끼 ARN을 애플리케이션에 연결하지 않습니다.
+- EventBridge 규칙은 `GetSecretValue`와 `DescribeSecret`을 모두 탐지하지만, R1-success 씨앗은 성공한 `GetSecretValue`만 사용합니다. `DescribeSecret`과 거부된 호출은 탐지 신호 또는 별도 민감도 분석으로 분리합니다.
 - CloudTrail 로그 파일 검증을 켜고 S3 버킷의 버전 관리, 공개 차단, TLS 강제를 적용했습니다.
 - KMS 키 정책은 계정 관리자와 CloudTrail, CloudWatch Logs, EventBridge의 필요한 암호화 작업만 허용합니다.
 - `terraform.tfvars`, 상태 파일, plan 파일은 커밋하지 않습니다.

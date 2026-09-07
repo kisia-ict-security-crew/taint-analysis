@@ -3,6 +3,12 @@ name_prefix       = "taint-analysis"
 alert_email       = "security-team@example.com"
 honeytoken_name   = "/honeytoken/prod/legacy-api-key"
 log_retention_days = 90
+monthly_budget_usd = 20
+
+# Keep the evidence bucket by default. Experiment buckets contain synthetic data
+# and may be emptied by Terraform during teardown.
+allow_log_bucket_destroy        = false
+allow_experiment_bucket_destroy = true
 
 tags = {
   Project     = "taint-analysis"

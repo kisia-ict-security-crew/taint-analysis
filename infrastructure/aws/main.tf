@@ -62,7 +62,10 @@ resource "aws_kms_key" "cloudtrail" {
         Resource  = "*"
         Condition = {
           ArnEquals = {
-            "aws:SourceArn" = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${local.account_id}:rule/${var.name_prefix}-honeytoken-access"
+            "aws:SourceArn" = [
+              "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${local.account_id}:rule/${var.name_prefix}-honeytoken-access",
+              "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${local.account_id}:rule/${var.name_prefix}-data-seed-access",
+            ]
           }
         }
       }
@@ -209,6 +212,15 @@ resource "aws_cloudtrail" "main" {
   event_selector {
     include_management_events = true
     read_write_type           = "All"
+
+    data_resource {
+      type = "AWS::S3::Object"
+      values = [
+        "${aws_s3_bucket.experiment["critical"].arn}/",
+        "${aws_s3_bucket.experiment["staging"].arn}/",
+        "${aws_s3_bucket.experiment["egress"].arn}/",
+      ]
+    }
   }
 
   depends_on = [aws_s3_bucket_policy.cloudtrail]
