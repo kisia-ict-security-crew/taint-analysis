@@ -1,8 +1,8 @@
 # C-/D-Taint analysis engine
 
-> Legacy offline baseline, not the active runtime propagation system.
-> See [research redesign](../../../RESEARCH_REDESIGN.md) and [cloud runtime](../../runtime/README.md).
-> Passing these tests does not validate the runtime broker or an AWS deployment.
+This is the analysis engine for the active log-based research design. See the
+[research design](../../../RESEARCH_REDESIGN.md). Unit tests validate deterministic
+propagation logic; actual AWS feasibility additionally requires captured CloudTrail evidence.
 
 This directory implements the research analysis layer that is intentionally independent of the run manifest ground truth.
 

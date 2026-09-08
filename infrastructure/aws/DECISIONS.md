@@ -1,9 +1,8 @@
 # C-/D-Taint 연구 설계 결정
 
-> **Legacy 기준선 — 2026-09-08 대체됨.** 아래 규칙은 CloudTrail 사후 분석기의 역사적 의미론입니다.
-> 현재 연구 기준은 [실행 시점 재설계](../../RESEARCH_REDESIGN.md)이며,
-> 구현은 [runtime](../runtime/README.md)입니다. 특히 일반 PutObject의 D-clean 규칙은
-> 새 runtime의 read→transform→write 전파에는 적용하지 않습니다.
+> 아래 규칙은 현재 로그 분석기 구현의 역사적 세부 결정입니다. 최종 의미론과 E1/E2/E3/U 판정은
+> [감사 로그 기반 연구 설계](../../RESEARCH_REDESIGN.md)가 우선합니다. 특히 일반 PutObject는
+> 명시적 copy 관계가 없으면 E1 D 전파가 아니며, 동일 세션 상관은 E2 후보로만 다룹니다.
 
 이 문서는 구현과 평가에서 의미가 흔들리지 않도록 현재 연구 범위의 결정을 고정한다.
 
@@ -55,4 +54,3 @@
 - 실제 access key 생성(R3), 권한 지속성/확대(R4), 외부 계정 반출, 공개 버킷 변경, 실제 데이터 사용은 현재 핵심 결론에 필요하지 않고 위험을 넓히므로 실행하지 않는다.
 - simulated-egress는 같은 연구 계정의 비공개 버킷이다.
 - 현재 결과는 단일 계정의 결정적 합성 실험에 대한 feasibility evidence다. 모집단 precision/recall 또는 일반화 성능으로 해석하지 않는다.
-

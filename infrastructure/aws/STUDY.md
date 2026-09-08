@@ -1,7 +1,7 @@
 # AWS 로그 수집과 허니토큰 스터디 정리
 
-> **역사적 배경 자료.** CloudTrail 설명과 기존 체크리스트입니다.
-> 현재 실행 시점 전파 연구의 기준은 [RESEARCH_REDESIGN.md](../../RESEARCH_REDESIGN.md)입니다.
+> CloudTrail 설명과 초기 체크리스트를 보존한 배경 자료입니다. 현재 로그 기반 연구의 기준은
+> [RESEARCH_REDESIGN.md](../../RESEARCH_REDESIGN.md)입니다.
 
 ## 1. 목표
 
