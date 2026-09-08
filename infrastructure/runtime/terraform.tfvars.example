@@ -1,0 +1,3 @@
+region = "ap-northeast-2"
+name = "taint-runtime"
+researcher_arns = ["arn:aws:iam::971950499606:user/admin-all"]

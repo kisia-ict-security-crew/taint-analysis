@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/cloud-mine/v1alpha1/schema.json",
+  "title": "Cloud Mine Registration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "mine_id", "kind", "resource", "trigger", "emit_c_on_read", "emit_d"],
+  "properties": {
+    "spec_version": { "const": "cloud-mine/v1alpha1" },
+    "mine_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$" },
+    "kind": { "enum": ["aws.s3-object"] },
+    "resource": { "type": "string", "minLength": 1 },
+    "trigger": { "const": "read-success" },
+    "emit_c_on_read": { "type": "boolean" },
+    "emit_d": { "type": "boolean" }
+  }
+}
