@@ -6,6 +6,7 @@
 
 ## 연구 기준 문서
 
+- [CISC 제출용 연구·실험 설계](CISC_SUBMISSION_RESEARCH_DESIGN.md)
 - [C-/D-Taint 목적·교차점·검증을 포함한 핵심 설계](RESEARCH_REDESIGN.md)
 - [AWS 리소스·로그·상황별 구현 부록](TAINT_RESOURCE_LOG_IMPLEMENTATION_MATRIX.md)
 - [로그 기반 저비용 평가 설계](LOW_COST_TAINT_DESIGN.md)
