@@ -1,5 +1,9 @@
 # AWS 로그 수집 환경과 IaC 허니토큰
 
+> **Legacy 실험 환경.** CloudTrail 사후 분석 기준선으로 유지합니다.
+> 현재 연구용 실행 시점 Taint 구현과 별도 Terraform 배포는 [runtime/README.md](../runtime/README.md)를 따릅니다.
+> 이 디렉터리의 `terraform apply`는 새 runtime을 배포하지 않습니다.
+
 CloudTrail 관리 이벤트와 연구 버킷의 S3 데이터 이벤트를 암호화된 S3 버킷과 CloudWatch Logs에 수집합니다. Secrets Manager 미끼와 S3 Data 씨앗 접근은 EventBridge가 선별하여 SNS로 알립니다. A→B→C 역할 체인, R4 권한 부여 대상, R3 자격증명 발급 대상, Athena 분석 기반도 함께 생성합니다.
 
 > 이 구성은 실제 IAM 액세스 키나 유효한 자격 증명을 만들지 않습니다. 허니토큰 값은 Terraform 상태에 남기지 않기 위해 IaC에서 생성하지 않습니다.

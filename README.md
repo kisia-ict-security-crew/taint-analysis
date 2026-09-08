@@ -1,5 +1,23 @@
 # taint-analysis
 
+## 현재 연구 방향 — 2026-09-08 수정
+
+명확한 HoneyToken 접촉에서 시작한 C-Taint와 중요 데이터의 D-Taint를 **실행 시점에 단조 전파**하여
+침해 확산 경로와 교차 확인 지점을 줄이는 연구입니다. CloudTrail 사후 분석은 검증용 기준선입니다.
+
+- [연구 재설계·기술 근거·자산별 적용·실험 계획](RESEARCH_REDESIGN.md)
+- [초기 AWS 실행 결과와 논문용 결과 서술](RESULTS.md)
+- [제안 논문 완전 분석·이론 보강·현재 실험 연계](PAPER_REVIEW_AND_INTEGRATION.md)
+- [AWS 내부 실행 구현 및 배포 절차](infrastructure/runtime/README.md)
+- `infrastructure/runtime/`: API Gateway + Lambda broker + DynamoDB + S3 + STS.
+  데이터·자격증명 반환 전 상태 기록, S3 출력 태그, IAM 직접 우회 제한을 구현했습니다.
+- `infrastructure/aws/`: 기존 감사 로그 기반 실험 환경입니다. 새 runtime의 실행 경로가 아닙니다.
+- Pod/process/message/DB 어댑터는 아직 설계 단계이며, AWS 배포와 비용·성능 실측도 남아 있습니다.
+
+아래 내용은 이전 연구 개요이며, 충돌 시 위 재설계 문서를 기준으로 합니다.
+
+---
+
 클라우드 환경에서 침해된 자격증명의 사용 흐름과 중요정보의 이동 경로를 Taint로 추적하여, 실제 침해 영향 범위를 분석하는 연구 프로젝트입니다.
 
 허니토큰 접근이나 침해가 확인된 주체에서 C-Taint를 시작하고, 중요정보에는 D-Taint를 부여합니다. 이후 클라우드 감사 로그에 기록된 자격증명 사용, 주체 전환, 서비스 실행 및 데이터 접근 행위를 분석하여 각 Taint의 전파 경로와 교차 지점을 식별하는 방법을 연구하고 있습니다.

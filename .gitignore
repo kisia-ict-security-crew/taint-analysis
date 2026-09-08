@@ -1,22 +1,41 @@
-# venv
-.venv
-venv
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-# .terraform/
+# Terraform providers, state, plans, and private variables
 .terraform/
 *.tfstate
 *.tfstate.*
 *.tfplan
 *.tfvars
-
-# Terraform state files
-*.tfstate
-*.tfstate.*
-
-# Variable files containing secrets
-*.tfvars
 *.tfvars.json
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
 
 # Keep example variable files
 !*.tfvars.example
 !terraform.tfvars.example
+
+# Runtime build, experiments, and local downloads
+/awscliv2.zip
+/tmp/
+infrastructure/runtime/broker.zip
+**/runs/
+
+# Local environment and editor/OS metadata
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log

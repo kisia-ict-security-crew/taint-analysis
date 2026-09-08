@@ -1,5 +1,8 @@
 # AWS 연구 환경 실행 절차
 
+> **Legacy runbook.** 아래 API 실험은 감사 로그 기준선입니다. 새 온라인 실행 절차는
+> [runtime/README.md](../runtime/README.md)를 따릅니다. 아래 R3/R4 프로브는 새 runtime 범위가 아닙니다.
+
 이 문서는 Terraform 적용 이후 사람이 수행해야 하는 프로브와 로그 확인 절차다. 모든 객체와 비밀 값은 합성 데이터만 사용한다.
 
 ## 1. 배포 전 확인

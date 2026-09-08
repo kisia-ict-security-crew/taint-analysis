@@ -1,5 +1,10 @@
 # C-/D-Taint 연구 설계 결정
 
+> **Legacy 기준선 — 2026-09-08 대체됨.** 아래 규칙은 CloudTrail 사후 분석기의 역사적 의미론입니다.
+> 현재 연구 기준은 [실행 시점 재설계](../../RESEARCH_REDESIGN.md)이며,
+> 구현은 [runtime](../runtime/README.md)입니다. 특히 일반 PutObject의 D-clean 규칙은
+> 새 runtime의 read→transform→write 전파에는 적용하지 않습니다.
+
 이 문서는 구현과 평가에서 의미가 흔들리지 않도록 현재 연구 범위의 결정을 고정한다.
 
 ## 1. 분석 단위와 CEM
