@@ -6,6 +6,10 @@ propagation logic; actual AWS feasibility additionally requires captured CloudTr
 
 This directory implements the research analysis layer that is intentionally independent of the run manifest ground truth.
 
+Pure honey resources are C seeds only. The protected critical object is the independent D seed; therefore a honey
+contact remains `C_ONLY` until that compromise lineage performs an impact-relevant action on D-classified or
+D-lineage data.
+
 ## Components
 
 - `taint_engine.py`: CloudTrail-to-CEM normalization, deterministic C-/D-Taint propagation, assertions, and trace rendering

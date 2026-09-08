@@ -3,6 +3,9 @@
 이 디렉터리가 최종 연구 방향의 공식 AWS IaC와 분석 구현입니다. 기존 워크로드의 요청 경로를 변경하지
 않고 CloudTrail 관리 이벤트와 선택된 S3 데이터 이벤트로 C-/D-Taint 계보를 재구성합니다.
 
+리소스와 로그마다 적용할 C/D 규칙, 증거 수준, 중단 조건 및 추가 계측 기준은
+[AWS 리소스·로그·상황별 구현 명세](../../TAINT_RESOURCE_LOG_IMPLEMENTATION_MATRIX.md)를 따릅니다.
+
 CloudTrail 관리 이벤트와 연구 버킷의 S3 데이터 이벤트를 암호화된 S3 버킷과 CloudWatch Logs에 수집합니다. Secrets Manager 미끼와 S3 Data 씨앗 접근은 EventBridge가 선별하여 SNS로 알립니다. A→B→C 역할 체인, R4 권한 부여 대상, R3 자격증명 발급 대상, Athena 분석 기반도 함께 생성합니다.
 
 > 이 구성은 실제 IAM 액세스 키나 유효한 자격 증명을 만들지 않습니다. 허니토큰 값은 Terraform 상태에 남기지 않기 위해 IaC에서 생성하지 않습니다.

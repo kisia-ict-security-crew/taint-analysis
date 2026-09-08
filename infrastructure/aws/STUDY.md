@@ -5,7 +5,8 @@
 
 ## 1. 목표
 
-침해 주체(C-Taint)가 미끼 정보(D-Taint)에 접근하는 순간을 AWS 감사 로그에서 식별하고, 이후의 권한 전환과 리소스 접근을 같은 주체·세션·시간축으로 연결한다.
+HoneyToken 접촉에서 시작한 침해 주체(C-Taint)의 계보와 사전 분류된 중요 데이터(D-Taint)의 계보를
+AWS 감사 로그에서 각각 추적하고, C 주체가 D 자산에 영향을 준 최초 행위를 식별한다.
 
 ## 2. 왜 CloudTrail인가
 
@@ -47,20 +48,19 @@ CloudTrail 자체가 EventBridge에 API 이벤트를 전달하므로 경보를 �
 
 ## 5. C-Taint와 D-Taint 연결
 
-1. `GetSecretValue` 이벤트에서 `userIdentity.arn`, 세션 발급자, 접근 키 ID, 출발지 IP를 추출한다.
-2. 같은 `principalId` 또는 임시 세션을 기준으로 전후 시간대 이벤트를 조회한다.
-3. `AssumeRole` 이벤트의 `responseElements.credentials.accessKeyId`와 이후 이벤트의 `userIdentity.accessKeyId`를 연결해 주체 전환을 추적한다.
-4. 접근한 리소스 ARN·요청 파라미터를 D-Taint 전파 후보로 기록한다.
-5. 동일 IP만으로 단정하지 않고 세션, 계정, User-Agent, 시간 근접성을 함께 사용한다.
+1. 등록 HoneyToken의 성공한 `GetSecretValue` 또는 `GetObject`에서 구체적인 session에 C를 생성한다.
+2. `AssumeRole` 응답의 발급 session/access key와 이후 사용을 직접 연결해 C 제어 계보를 추적한다.
+3. 사전 분류한 중요 객체 version을 D seed로 등록하고 성공한 read와 명시적 copy를 추적한다.
+4. C session이 D 자산을 읽기·수정·삭제·복사한 event를 typed intersection으로 기록한다.
+5. 동일 IP, role, User-Agent, 시간 근접성은 보조 정보일 뿐 E1 전파 근거로 사용하지 않는다.
 
 예시 분석 흐름:
 
 ```text
-의심 세션(C-Taint)
-  → DescribeSecret
-  → GetSecretValue(D-Taint 접촉)
-  → AssumeRole(주체 전환)
-  → S3/GetObject 또는 다른 중요 리소스 접근
+HoneyToken GetSecretValue 성공 → session C 생성
+  → AssumeRole 직접 발급 관계 → child session C 전파
+  → 중요 S3 object(D) GetObject 성공
+  → E1 READ intersection
 ```
 
 ## 6. 탐지 후 대응

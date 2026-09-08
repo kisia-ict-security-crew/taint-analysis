@@ -37,4 +37,18 @@ B0/S1/S2 단일 통합 실행에서 `(0,0)`, `(1,1)`, `(0,1)` S3 태그를 확�
 
 배포 후에는 README의 체크리스트와 연구 설계 G1/G2를 실행하고,
 정제된 runner 출력, DDB 상태/edge, S3 태그, 직접 API 거부 결과를 별도로 보존해야 한다.
-저비용·낮은 오버헤드·탐지 성능에 대한 수치는 현재 없다.
+이 시점에는 저비용·낮은 오버헤드·탐지 성능에 대한 수치가 없었으며, 아래 후속 실행에서 제한 범위 비용 계측을 추가했다.
+
+## 2026-09-08 저비용 feasibility 실행
+
+- registry 기반 최신 Broker 배포 후 B0/S1/S2와 raw S3 우회 거부 PASS
+- 임시 지뢰 `N={0,1,10,100,1000}` 설치 시 공유 Lambda/API Gateway/DynamoDB 수 불변
+- 지뢰 설치 중 Broker invocation 0; 지뢰당 DDB write 1회와 S3 PUT 1회
+- HoneyToken 접촉 5회, 직접 S3 PUT 20회, clean Broker PUT 20회 실행
+- 전체 Lambda REPORT 31/31 수집
+- correctness assertion 9/9 PASS
+- 임시 registry 0건, 임시 S3 version 0건으로 정리 확인
+
+구체적인 지연과 서울 리전 단가 기반 bottom-up 추정은 `COST_STUDY_RESULTS.md`에 기록했다.
+기존 runtime Terraform state가 로컬에 없어서 이번 AWS 코드/registry 반영은 이름으로 검증한 기존
+리소스에 직접 수행했다. 후속 IaC 변경 전 state import 또는 새 backend 구성이 필요하다.

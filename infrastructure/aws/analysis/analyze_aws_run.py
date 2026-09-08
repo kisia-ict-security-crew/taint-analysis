@@ -171,11 +171,9 @@ def build_policy(manifest: dict[str, Any], outputs: dict[str, Any]) -> dict[str,
         "experimental_condition": manifest.get("experimental_condition", "DEFAULT"),
         "source_identity_enabled": bool(manifest.get("source_identity_enabled", False)),
         "c_seed_resources": [outputs["data_seed_s3_uri"], outputs["honeytoken_secret_arn"]],
-        "d_seed_resources": [
-            outputs["data_seed_s3_uri"],
-            outputs["honeytoken_secret_arn"],
-            outputs["critical_object_s3_uri"],
-        ],
+        # Pure honey resources establish compromise provenance (C) only.
+        # Business-sensitive data is the independent D lineage.
+        "d_seed_resources": [outputs["critical_object_s3_uri"]],
         "expected_c_session_suffixes": [],
         "expected_clean_session_suffixes": [],
         "expected_d_resources": [],

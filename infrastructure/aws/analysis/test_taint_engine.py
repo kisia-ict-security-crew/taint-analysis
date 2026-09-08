@@ -71,7 +71,7 @@ class TaintEngineTests(unittest.TestCase):
             "run_id": self.run_id,
             "scenario": scenario,
             "c_seed_resources": [DATA_SEED, SECRET_SEED],
-            "d_seed_resources": [DATA_SEED, SECRET_SEED, CRITICAL],
+            "d_seed_resources": [CRITICAL],
             "expected_c_session_suffixes": (
                 [f"/{self.run_id}-a", f"/{self.run_id}-b", f"/{self.run_id}-c"]
                 if scenario == "S1-a"
@@ -184,6 +184,19 @@ class TaintEngineTests(unittest.TestCase):
         )
         result = analyze(normalize_events([denied]), {**self.policy("S2"), "expected_d_resources": []})
         self.assertEqual([], result["c_tainted_sessions"])
+
+    def test_honey_contact_is_c_only_until_critical_data_is_touched(self) -> None:
+        honey_event = self.scenario_events(touch_seed=True)[0]
+        result = analyze(normalize_events([honey_event]), {
+            **self.policy("S1-a"),
+            "expected_c_session_suffixes": [f"/{self.run_id}-a"],
+            "expected_d_resources": [],
+            "expected_clean_resources": [],
+            "expected_event_class_minimums": {"C_ONLY": 1},
+        })
+        self.assertTrue(result["analysis_passed"])
+        self.assertEqual("C_ONLY", result["event_classification"][0]["classification"])
+        self.assertNotIn(DATA_SEED, result["d_tainted_resources"])
 
     def test_s2_propagates_d_without_c_taint(self) -> None:
         cem = normalize_events(self.scenario_events(touch_seed=False))

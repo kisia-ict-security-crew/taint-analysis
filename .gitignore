@@ -14,6 +14,8 @@ htmlcov/
 *.tfstate
 *.tfstate.*
 *.tfplan
+tfplan
+tfplan-*
 *.tfvars
 *.tfvars.json
 .terraform.tfstate.lock.info
@@ -28,6 +30,7 @@ crash.*.log
 /awscliv2.zip
 /tmp/
 infrastructure/runtime/broker.zip
+infrastructure/runtime/results/*.json
 **/runs/
 
 # Local environment and editor/OS metadata

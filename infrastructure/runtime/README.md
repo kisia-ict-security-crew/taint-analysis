@@ -1,6 +1,11 @@
-# Cloud-inline monotonic taint prototype
+# 보관된 강제 중개 예비 프로토타입
 
-연구 기준은 [RESEARCH_REDESIGN.md](../../RESEARCH_REDESIGN.md)다.
+> **최종 제안 아키텍처가 아닙니다.** 요청 경로 변경과 추가 지연·비용 때문에 본 논문의 연구축에서
+> 제외했습니다. 코드는 과거 feasibility 실험의 재현 기록으로만 보존하며, 현재 연구 구현은
+> [AWS 로그 기반 환경](../aws/README.md)을 사용합니다.
+
+과거 실험의 연구 기준은 당시의 [RESEARCH_REDESIGN.md](../../RESEARCH_REDESIGN.md)였으나 현재 문서는
+로그 기반 최종 설계로 교체되었다.
 CloudTrail 로그가 없어도 요청 처리 중 C-/D-Taint를 확정하는 AWS Lambda broker다.
 현재 S3 합성 미끼/중요 데이터와 STS worker 위임을 지원하며 운영 배포 전 연구 프로토타입이다.
 
@@ -11,6 +16,7 @@ CloudTrail 로그가 없어도 요청 처리 중 C-/D-Taint를 확정하는 AWS 
 - `main.tf`: IAM 인증 API Gateway, Lambda, DynamoDB, S3, worker/broker 역할.
 - `client.py`: SigV4 요청 전송. 데이터/자격증명을 CLI 출력에서 제외한다.
 - `run_experiment.py`: B0/S1/S2, 직접 S3 우회 거부를 실제 AWS에서 검사한다.
+- `run_cost_study.py`: 임시 지뢰 규모, 접촉, 직접/선택적 중개 지연과 요청량을 측정하고 정제된 결과를 만든다.
 - `test_broker.py`: AWS 없는 단위 테스트. 배포 성공을 대체하지 않는다.
 
 broker는 상태 저장 후 데이터/자격증명을 반환한다. worker는 API 호출만 허용된다.
@@ -55,6 +61,19 @@ $runtimeWorker = terraform output -raw worker_role
 $runtimeBucket = terraform output -raw bucket
 python run_experiment.py --endpoint $runtimeEndpoint --worker-role $runtimeWorker --bucket $runtimeBucket
 ```
+
+저비용 가설의 실제 계측은 저장소 루트의 `LOW_COST_TAINT_DESIGN.md`를 먼저 읽고 다음처럼 실행한다.
+
+```powershell
+python run_cost_study.py `
+  --endpoint $runtimeEndpoint `
+  --worker-role $runtimeWorker `
+  --bucket $runtimeBucket `
+  --table (terraform output -raw state_table) `
+  --output .\results\cost-study.json
+```
+
+이 실행은 최대 1,000개의 합성 임시 registry/object를 설치 후 정확한 key/version으로 정리한다. Broker가 만든 파생 객체와 상태는 실험 증거로 보존한다. 짧은 실행의 Cost Explorer 청구액 대신 API 수와 Lambda billed duration을 주 결과로 사용한다.
 
 배포와 실행은 비용이 발생한다. 이 저장소 변경 작업에서는 실행하지 않았다.
 `run_experiment.py`의 JSON은 실제 실행에서만 생성된다. stderr/credential을 포함한 전체 셸 기록 대신

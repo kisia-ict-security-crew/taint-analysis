@@ -23,14 +23,17 @@
 
 ## 3. D-Taint
 
-- 최초 D seed는 데이터 honeytoken, secret honeytoken, 사전 분류된 중요 객체다.
+- 최초 D seed는 사전 분류된 중요 데이터 version 또는 보호 대상 논리 자산이다. 순수 HoneyToken은
+  침해 접촉을 위한 C seed이며, 실제 중요 데이터를 포함하지 않는 한 자동 D seed가 아니다.
 - D 전파는 현재 `CopyObject`의 `x-amz-copy-source`와 목적지 bucket/key가 모두 존재할 때만 `EXACT`로 인정한다.
-- 출처를 관측할 수 없는 일반 `PutObject`는 D-clean으로 둔다.
+- 출처를 관측할 수 없는 일반 `PutObject`에는 E1 D-lineage를 부여하지 않는다. 같은 세션의 선행 read가
+  있으면 별도 E2 derived 후보로만 기록한다.
 - CloudTrail만으로 메모리·애플리케이션 내부 데이터 의존을 증명해야 하는 R6은 현재 `UNSUPPORTED`다.
 
 ## 4. 교차점과 판정
 
-- `C_AND_D`: C-tainted session이 D-tainted 입력 또는 출력을 다룬 이벤트. seed-confirmed high-confidence 신호다.
+- `C_AND_D`: C session이 D-classified/D-lineage 자산을 읽기·수정·삭제·복사한 typed impact event다.
+  같은 엔터티의 Boolean 중첩만으로 만들지 않는다.
 - `C_ONLY`: 오염 session의 행위지만 관측된 D lineage가 없다.
 - `D_ONLY`: C-clean session이 D-tainted 데이터를 다룬다. seedless 공격과 정상 중요 데이터 처리가 섞일 수 있으므로 review 신호다.
 - `CLEAN`: 두 taint 모두 없다.

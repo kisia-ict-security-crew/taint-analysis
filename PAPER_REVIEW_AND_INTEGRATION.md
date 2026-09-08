@@ -1,185 +1,233 @@
-# 「클라우드 지뢰형 탐지 기술과 비가역적 Taint 기반 침해 영향 추적 구조 제안」 분석 및 실험 연계
+# 논문 분석과 로그 기반 구현 통합안
 
-검토일: 2026-09-08  
-원문 범위: 3쪽, 서론·구조 제안·Taint 정의·평가 계획·향후 연구·참고문헌. 논문 안에는 완결된 실험 결과가 없다.
+대상 논문: 「클라우드 지뢰형 탐지 기술과 비가역적 Taint 기반 침해 영향 추적 구조 제안」
+목적: 이론 제안과 현재 GitHub 구현의 차이를 밝히고, 논문에 필요한 설계·평가 항목을 확정한다.
 
-## 1. 논문의 정확한 주장
+## 1. 논문의 현재 위치
 
-논문은 자격증명 탈취 이후 공격자가 정상 인증 수단과 API를 사용하면 단순 이상행위 탐지만으로 침해를
-구분하기 어렵다는 문제에서 출발한다. 상시 실행되는 가상 시스템·컨테이너·미끼 네트워크는 접촉이 없어도
-운영 자원을 유지하지만, HoneyToken 같은 경량 지뢰는 접촉 시점에 증거를 만들 수 있다는 관찰을 사용한다.
+논문은 클라우드 지뢰, 공통 스키마, CSP별 어댑터, C-/D-Taint 및 두 계보의 교차라는 연구 개념을
+제시한다. 특히 단일 경보보다 침해 주체의 계보와 중요 데이터 계보가 만나는 지점을 찾는다는 문제 설정은
+명확하다.
 
-제안 구조의 중심은 특정 HoneyToken 하나가 아니다. 다음 네 요소를 하나의 체계로 묶는 것이다.
+반면 현재 원고만으로는 다음 질문에 답하기 어렵다.
 
-1. 자격증명·URL·DNS·데이터·외부 반출 지뢰를 등록하는 지뢰 마켓플레이스와 공통 명세.
-2. CSP별 인증·이벤트 형식 차이를 공통 이벤트로 바꾸는 CSP 연동 모듈.
-3. 같은 종류의 다수 지뢰가 공유하는 공통 처리기와 저장소.
-4. 지뢰 접촉의 C-Taint와 중요 데이터의 D-Taint를 비가역적으로 누적하고 교차점을 찾는 처리 영역.
+- Taint가 어떤 저장소에 어떤 식별자로 기록되는가.
+- 하나의 API 이벤트에서 다음 이벤트로 무엇을 근거로 전파하는가.
+- 거부된 접근, 성공한 접근, 데이터 파생을 어떻게 구분하는가.
+- 로그만으로 알 수 없는 경계를 어떻게 처리하는가.
+- 공격자가 태그·상태·로그를 삭제하거나 우회하면 무엇이 남는가.
+- “저비용”을 어떤 비교군과 측정값으로 검증하는가.
+- 여러 CSP를 공통화할 최소 필드와 CSP별 한계는 무엇인가.
 
-지뢰 추가는 새 서버나 처리기의 상시 실행이 아니라 고유 식별자, 정책, 작은 객체의 등록이어야 한다.
-논문이 제안한 비용 평가는 공격이 없을 때의 기본 비용, 지뢰 1개 추가 비용, 접촉 1회 처리 비용이다.
-향후 AWS와 Naver Cloud에서 자격증명·URL·데이터 지뢰를 구현하고 CSP 이식성과 비용 증가를 검증한다고 적었다.
+따라서 논문은 새로운 실행 경로를 추가하는 시스템이 아니라, 기존 감사 증거에서 Taint 계보를
+재구성하는 분석 구조로 구체화한다.
 
-따라서 이 논문은 **아키텍처와 연구 가설을 제안한 short paper**다. 저비용, 이식성,
-영향 범위 축소는 측정 결과가 아니라 검증 예정 목표다.
+## 2. 최종 제안 구조
 
-## 2. 이론 모델 보강
+```text
+Cloud mine / HoneyToken / 중요 자산 registry
+                         │
+기존 CSP 감사 로그 ──────┼──→ 공통 이벤트 모델(CEM)
+                         │              │
+                         ▼              ▼
+                    원본 증거 저장   Taint 전파 엔진
+                                         │
+                                         ▼
+                              상태·계보·최초 교차점
+                                         │
+                                         ▼
+                                  경보·조사 보고서
+```
 
-원문의 `T(t+1) ⊇ T(t)`, `T(t+1)=T(t)∪E`는 방향은 맞지만 객체, 증거, 인과관계가 정의되지 않았다.
-다음처럼 형식화하면 구현과 평가가 연결된다.
+업무 요청은 기존 CSP API로 그대로 처리한다. Taint는 업무 데이터 안이나 요청 헤더에 삽입하지 않고,
+감사 이벤트와 seed registry를 근거로 외부 상태에 누적한다. 분석 장애가 업무 가용성을 떨어뜨리지 않는
+비동기 구조가 저비용·비침습 목적에 부합한다.
 
-- 시간 t까지의 provenance graph를 `G_t=(V,E_t)`로 둔다. V는 credential instance, execution context,
-  versioned resource, message 등이며 edge는 read, write, delegate, execute, send 같은 typed relation이다.
-- 각 엔터티 v의 label은 `L_t(v)=(C_t(v),D_t(v))`이고 각 성분은 Boolean보다 **원인 seed ID의 집합**으로 둔다.
-- join은 집합 합집합이다: `L_{t+1}(v)=L_t(v) ⊔ Δ_t(v)`. 따라서 `L_t(v) ⊆ L_{t+1}(v)`이다.
-- C는 공격자 영향 또는 제어권 전파, D는 중요 데이터의 정보 흐름이다. 두 label은 같은 규칙으로 전파하지 않는다.
-- 교차점은 단순히 같은 객체에 두 Boolean이 있는 경우만이 아니다. `C_t(v)≠∅ ∧ D_t(v)≠∅`인
-  이벤트/엔터티 또는 C 원인과 D 원인이 typed causal path로 만나는 최초 지점이다.
-- 여러 HoneyToken과 중요 데이터가 있을 때 `X(v)={(c,d) | c∈C(v), d∈D(v)}`를 보존해야
-  서로 다른 침해 캠페인과 데이터 계보를 구분할 수 있다.
+## 3. 공통 이벤트 모델
 
-현재 runtime의 Boolean C/D는 이 모델의 축약판이다. feasibility에는 충분하지만 원인 집합과 최초 교차점을
-복원하지 못한다. 다음 구현 단계에서 `c_sources`, `d_sources`, `first_intersection_edge`를 추가해야 한다.
+멀티클라우드 공통화는 모든 필드를 동일하게 만드는 것이 아니라, 전파 판정에 필요한 최소 의미를
+정규화하는 작업이다.
 
-### 신뢰도와 전파 규칙
+```text
+event_id
+event_time
+ingest_time
+provider
+account_or_tenant
+service
+action
+success
+actor_instance_id
+session_id
+source_resource
+destination_resource
+resource_version
+parent_session_id
+request_parameters_digest
+evidence_reference
+```
 
-사용자 정의 정책만 강조하면 동일 사건이 설정에 따라 임의 판정되는 문제가 생긴다. 공통 명세에는 규칙뿐 아니라
-근거 강도를 포함해야 한다.
+원문 자격증명, secret, payload는 CEM에 넣지 않는다. CSP 원본 이벤트는 변경하지 않고 증거 저장소에
+보존하며 CEM 레코드는 원본 위치와 hash를 참조한다.
 
-| 근거 등급 | 의미 | 예시 |
+AWS에서는 CloudTrail `eventID`, `eventTime`, `eventSource`, `eventName`, `errorCode`,
+`userIdentity`, `requestParameters`, `responseElements`, `resources` 등을 위 필드로 변환한다.
+Azure·GCP·Naver Cloud는 동일 의미의 필드가 실제로 존재하는지 별도의 coverage 표로 검증한다.
+
+## 4. Taint 저장과 비가역성
+
+저장 구조는 세 계층으로 나눈다.
+
+| 계층 | 내용 | 역할 |
 |---|---|---|
-| E0 Seed | 관리자가 등록한 시작점 | HoneyToken, 중요 데이터 version |
-| E1 Exact | 실행 경로가 직접 인증한 전파 | broker가 반환 전 상태 기록, child credential 직접 발급 |
-| E2 Derived | 어댑터가 보수적으로 계산한 전파 | D를 읽은 세션의 후속 출력 |
-| E3 Correlated | 시간·IP·로그 상관에 기반한 후보 | CloudTrail 사후 보조 분석 |
+| 증거 저장 | CSP 원본 감사 로그 | 재분석과 판정 검증의 기준 |
+| seed registry | HoneyToken 및 중요 자산의 연구 ID·정확한 resource version | C/D 시작점 |
+| 상태·계보 | C 주체, D-classified 자산, D-lineage 데이터, exposure, typed edge, 최초 교차 | 분석 결과 |
 
-C∩D 결과에는 seed ID, typed path, 근거 등급, 발생 시점, adapter version을 함께 기록한다.
+비가역성은 리소스 태그를 삭제하지 못하게 한다는 뜻이 아니다. 같은 엔터티 생애에서 원인 집합을
+추가만 하는 단조 join과, 과거 판정을 삭제하지 않는 append-only 이력으로 정의한다.
 
-## 3. 관련 연구와의 관계
+```text
+C(subject)      = set of compromise/control seed IDs
+D_class(asset)  = set of protected-asset seed IDs
+D_lineage(data) = set of source-data seed IDs
+intersection(event) iff a C subject performs an impact action on D-class/D-lineage
+```
 
-SLEUTH는 COTS audit data를 platform-neutral dependency graph로 바꾸고 tag를 이용해 source identification,
-impact analysis, compact attack graph를 실시간 수행한다. 현재 연구는 HoneyToken을 고신뢰 seed로 사용하고
-관리형 클라우드 API의 실행 경로에서 label을 먼저 확정한다. CloudTrail legacy 분석은 SLEUTH 계열의
-스트리밍/사후 provenance baseline으로 사용할 수 있다.
+D-class는 보호 대상으로 지정된 논리 자산이고 D-lineage는 특정 중요 데이터 version에서 직접 이어진
+내용 계보다. 세션이 D를 읽었다는 사실은 세션에 D 객체 label을 붙이지 않고 exposure edge로 기록한다.
 
-RTAG는 host별 DIFT tag를 네트워크 패킷에 실어 cross-host flow를 연결하고 record/replay로 tag dependency와
-분석을 분리해 lazy synchronization한다. 현재 연구에는 두 가지 시사점이 있다.
+S3 객체는 bucket/key만으로 식별하면 overwrite를 구분하지 못하므로 version ID를 포함한다. 세션은
+공유 IAM Role이 아니라 발급된 credential instance 또는 session ARN을 사용한다. 원문 access key는
+노출하지 않고 fingerprint만 저장한다.
 
-- CSP/host 경계를 넘는 label은 임의 HTTP header가 아니라 인증된 context여야 한다.
-- 모든 상세 tag를 매 요청에서 동기화하지 않고 source ID와 dependency를 지연 결합하면 비용을 줄일 수 있다.
+## 5. 전파 의미론
 
-RTAG가 보고한 bandwidth overhead와 메모리·분석시간 감소율은 RTAG 구현 결과다. 현재 runtime의 성능
-근거로 재사용할 수 없다. 같은 지표를 본 시스템에서 별도로 측정해야 한다.
+### C 계보
 
-Zhang과 Thing의 deception survey는 honeypot, HoneyToken, moving-target defense를 공격 단계와
-network/system/software/data layer로 분류하고, 통합 deception과 운영 비용 정량화를 향후 방향으로 제시한다.
-지뢰 명세에 `attack_stage`, `deception_layer`, `trigger`, `cost_class`를 추가하면 직접 연결할 수 있다.
+- 등록 미끼의 성공한 취득은 해당 세션의 C seed다.
+- 실패·거부·목록 조회는 접촉 시도이며 C-success와 분리한다.
+- C 세션이 AssumeRole로 발급한 자식 세션을 응답 식별자로 연결할 수 있으면 C를 전파한다.
+- 같은 IP, 역할 이름, user-agent 또는 시간 근접성만으로 C를 전파하지 않는다.
 
-## 4. 현재 실험과의 대응
+### D 계보
 
-| 논문 구성요소 | 현재 상태 | 논문에 쓸 수 있는 해석 |
+- 등록된 중요 객체 version은 D seed다.
+- 중요 객체의 성공한 읽기는 객체에서 세션으로의 노출 edge다.
+- CopyObject처럼 원본과 목적지가 한 이벤트에 나타나면 목적 객체로 D를 전파한다.
+- GetObject 후 애플리케이션이 PutObject를 수행한 경우 로그만으로 byte 의존성을 확인할 수 없으므로
+  정확 전파가 아니라 추정 후보로 분리한다.
+
+### 최초 교차
+
+- C 세션이 D 객체를 성공적으로 읽는 최초 이벤트는 접근 교차점이다.
+- C 세션이 D 객체를 명시적으로 복사해 새 D 객체를 만드는 이벤트는 계보 교차점이다.
+- 단순 권한 보유, 거부된 요청 또는 동일 네트워크 위치는 교차점이 아니다.
+
+## 6. 증거 수준과 관측 공백
+
+| 수준 | 논문 표현 | 사용 가능 결과 |
 |---|---|---|
-| 공통 처리기 | AWS API Gateway + Lambda broker 1개 | 두 seed와 모든 실험 요청이 동일 처리기를 사용함 |
-| 비가역 Taint | DynamoDB에서 False→True join | 단위 테스트로 단조성 확인, 장기·장애 조건은 추가 필요 |
-| 데이터 지뢰 | S3 HoneyToken과 중요 데이터 | AWS 한 CSP, 합성 객체 두 개 |
-| C/D 교차 | S1 output `(1,1)` | 실행 시점 교차 feasibility |
-| D-only | S2 output `(0,1)` | HoneyToken 우회 흐름을 공격 확정으로 과장하지 않음 |
-| 정상 기준선 | B0 output `(0,0)` | 단일 정상 쓰기에서 불필요한 Taint 없음 |
-| 공통 지뢰 명세 | `cloud-mine/v1alpha1` schema와 DynamoDB registry | 로컬 구현·테스트 완료, AWS 재배포 전 |
-| CSP 연동 | AWS S3/STS만 구현 | 다중 CSP 이식성 근거 없음 |
-| 비용 효율성 | 미측정 | 논문의 핵심 가설이 아직 열려 있음 |
-| 영향 범위 축소 | 미측정 | 전체 이벤트 대비 C∩D 후보 감소율을 측정해야 함 |
+| E1 EXACT | 직접 인과관계 | 주 precision/recall 및 최초 교차 결과 |
+| E2 INFERRED | 제한된 추론 | 후보 수와 과도 전파율 |
+| E3 OBSERVED | 접촉·접근 관측 | 보조 경보 |
+| U UNSUPPORTED | 로그로 판정 불가 | coverage 공백 |
 
-2026-09-08 초기 AWS 실행에서 B0, S1, S2의 S3 출력 태그는 각각 `(0,0)`, `(1,1)`, `(0,1)`이었다.
-이는 label 구분과 교차 생성의 동작 예시다. 조건당 1회이므로 detection rate나 false-positive rate가 아니다.
+논문의 중요한 기여는 모든 경계를 지원했다고 주장하는 데 있지 않다. 어떤 경계는 정확히 추적되고,
+어떤 경계는 추정만 가능하며, 어디부터 추가 계측이 필요한지를 공개하는 coverage matrix 자체가 실제
+도입 가능성을 높인다.
 
-## 5. 구현에 반영한 수정
+## 7. 훼손과 우회에 대한 설계
 
-- `cloud-mine.schema.json`에 `spec_version`, `mine_id`, `kind`, `resource`, `trigger`, C/D 발생 정책을 정의했다.
-- Terraform이 HoneyToken과 중요 데이터 지뢰를 `mine:<resource>` DynamoDB 항목으로 등록한다.
-- broker는 파일명으로 seed를 하드코딩하지 않고 registry 정책을 읽는다.
-- 두 지뢰는 같은 API Gateway, Lambda, DynamoDB table을 공유한다.
-- 같은 S3 kind의 지뢰 인스턴스 증가는 처리기 복제를 요구하지 않는다. 새 kind는 adapter 구현이 필요하다.
+Taint 결과만 보호해서는 충분하지 않다. 판정의 근거인 로그와 registry도 보호해야 한다.
 
-현재 registry 변경은 로컬 단위 테스트 17개와 Terraform validate를 통과했다. AWS에는 아직 재배포하지 않았으므로
-기존 AWS 결과를 registry 구현의 실측 결과로 사용하면 안 된다.
+- 원본 로그: 별도 로그 계정, KMS, bucket versioning, Object Lock 선택, CloudTrail log validation
+- 수집기: 원본 로그 read-only, 최소 권한, eventID 중복 제거
+- 상태: 조건부 단조 update, 과거 edge 삭제 금지, 정정은 superseding record
+- 식별정보: secret·token·payload 미저장, access key fingerprint 사용
+- 감시: Trail 중지, selector 축소, 버킷 정책·KMS·보존기간 변경도 보안 이벤트로 수집
 
-## 6. 논문에서 반드시 수정할 부분
+조직 관리 계정이나 로그 보관 계정까지 침해된 경우는 신뢰 경계 밖으로 명시한다. 로그가 없거나
+식별자가 끊긴 구간은 자동으로 추정해 메우지 않는다.
 
-1. 참고문헌 [1]과 [3], [2]와 [4]는 각각 같은 논문이 중복되어 있다. 하나씩만 남긴다.
-2. 수식은 `T_t(v)`, `E_t`, `⊔`의 정의와 전파 대상 v를 명시한다. PDF의 `tt`, `EE`, 중복 표기는 고친다.
-3. “비가역적”은 삭제 불가능하다는 뜻이 아니라 같은 엔터티 생애에서 label이 단조 증가한다는 뜻으로 제한한다.
-4. C-Taint의 침해 확인과 침해 의심을 구분하고 HoneyToken 배타성 가정과 관리자 시험 접촉을 명시한다.
-5. D-Taint의 객체 분류와 실제 정보 의존을 나눈다. session-level read→write는 보수적 파생이지 byte-level DIFT가 아니다.
-6. “동일 객체 또는 인과관계상 교차”를 typed graph의 최초 교차점으로 정의한다.
-7. 공통 이벤트 처리와 실행 시점 reference monitor를 분리한다. 전자는 E3 감사 근거, 후자는 E1 전파 근거다.
-8. 비용·이식성·낮은 오버헤드는 결과 전에는 목표 또는 가설로 쓴다.
-9. 위협 모델, 신뢰 경계, 우회 가능성, 장애 시 fail-closed/fail-open 정책을 추가한다.
-10. 제목과 초록에 prototype 또는 AWS case study 범위를 표시한다.
+## 8. 저비용 연구 주장
 
-## 7. 신뢰도를 높이는 평가 설계
+논문의 비용상 강점은 데이터 경로에서 동작하는 전면적 정보흐름 제어보다 낮은 보장을 제공하는 대신,
+기존 감사 기반에서 실제 조사에 필요한 교차점을 희소하게 찾는 데 있다.
 
-### H1: 지뢰 수와 유휴 비용 분리
+```text
+비용 = 기존 관리 로그
+     + 선택한 지뢰·중요 자산 데이터 이벤트
+     + 변경된 Taint 상태와 최초 교차점 처리
+     + 증거 보존
+```
 
-`N={0,1,10,100,1000}`개 지뢰를 같은 처리기에 등록하고 각 조건을 최소 24시간, 가능하면 7일 유지한다.
+이를 입증하려면 관리 로그만, 전체 데이터 이벤트, 선택 데이터 이벤트, 선택 수집+Taint 분석의 네
+구성을 같은 workload에서 비교한다. 비용과 함께 E1 coverage를 보고해야 하며, 로그 범위를 줄여 놓고
+비용 절감만 제시해서는 안 된다.
 
-`Cost(N,M,E)=Cost_shared_idle + N·Cost_registry + M·Cost_contact + E·Cost_evidence`
+## 9. 현재 GitHub 구현과 부족한 부분
 
-M은 접촉 수, E는 edge 수다. H1은 N 증가가 Lambda 상시 실행 수를 늘리지 않고 registry의 한계비용만
-늘린다는 것이다. 저장 byte, Terraform apply 시간, inventory query 비용도 측정한다.
+### 이미 있는 부분
 
-### H2: 접촉 비례 처리 비용
+- Terraform 기반 CloudTrail, S3, KMS, CloudWatch, EventBridge/SNS, Athena 환경
+- 합성 HoneyToken·중요 객체 및 역할 전환 시나리오
+- CloudTrail을 CEM으로 변환하는 분석기
+- C 세션, STS 역할 전환, D 접근·복사 및 C∩D 판정의 초기 규칙
+- 정상 배경, C∩D, D-only 시나리오의 실제 AWS 로그 기반 결과
 
-고정 N에서 M을 0, 1, 10, 100, 1000으로 바꾸고 API Gateway request, Lambda duration/GB-s,
-DynamoDB R/W request, S3 request, retry와 throttling을 측정한다. Cost and Usage Report와 공식 단가 계산을 대조한다.
+### 논문 결과 전에 보강할 부분
 
-### H3: 조사 범위 감소
+- Boolean label을 seed 원인 집합으로 변경
+- 모든 edge에 E1/E2/E3/U와 원본 eventID 기록
+- S3 object version 식별과 최초 교차 edge 저장
+- 성공 접촉과 거부 시도 분리
+- read-transform-write를 E1로 과장하지 않는 규칙과 음성 대조군
+- 선택 수집과 전체 수집의 실제 이벤트 수·비용 비교
+- 조건별 반복, 신뢰구간, precision/recall 및 과도 전파율
+- AWS 외 CSP의 실제 필드 mapping과 coverage 검증
 
-정답 공격 graph가 있는 반복 시나리오에서 다음을 보고한다.
+## 10. 논문 평가 설계
 
-- `1 - |C∩D review candidates| / |all security-relevant events|`
-- 최초 HoneyToken 접촉부터 최초 중요 데이터 교차까지의 지연
-- true causal edge recall, extraneous edge ratio, 최초 교차점 precision
-- B0 정상 workload의 C/D 과도 전파율
+### 연구 질문
 
-legacy CloudTrail analyzer, C-only, D-only, C∩D를 같은 행위에서 비교한다. 후보 수와 true path recall을 함께 본다.
+- RQ1: 로그가 직접 제공하는 관계만 사용했을 때 C/D 전파와 최초 교차점을 정확히 찾을 수 있는가?
+- RQ2: E1/E2/E3/U 분리가 false propagation과 관측 공백을 설명하는가?
+- RQ3: 선택 수집이 필요한 E1 coverage를 유지하면서 전체 데이터 이벤트 수집보다 비용을 줄이는가?
+- RQ4: 공통 이벤트 모델이 CSP별 의미 손실과 미지원 필드를 명시하면서 이식 가능한가?
 
-### H4: CSP 이식성
+### 필수 시나리오
 
-동일한 provider-neutral mine spec과 시나리오를 AWS와 Naver Cloud adapter에 적용한다. 공통 필드 충족률,
-provider-specific 필드 수, adapter 코드량, 배포 시간, 정책 의미 차이를 측정한다. 두 CSP 결과는
-“multi-cloud generality”보다 “two-provider portability feasibility”로 표현한다.
+- 정상 배경 B0
+- HoneyToken 성공·거부 C1/N1
+- HoneyToken→AssumeRole C2
+- 중요 객체 읽기 D1
+- 중요 객체 명시적 복사 D2
+- C 세션의 중요 객체 접근·복사 CD1/CD2
+- 동일 IP의 독립 세션 N2
+- 중요 데이터 읽기 후 무관한 출력 N3
 
-### H5: 실패와 우회 내성
+### 결과표
 
-직접 S3 접근, forged actor/C/D payload, registry 변조, DynamoDB 장애, lease 충돌, Lambda timeout,
-중복 요청, child 발급 직후 부모 오염, output write 실패를 시험한다. 데이터나 credential이 label 확정 전에
-반환되는지 확인하고 미계측 경계를 coverage 분모에 포함한다.
+- 시나리오별 기대/실제 C와 D 원인
+- 최초 교차 eventID, eventTime, edge type, 증거 수준
+- E1 precision/recall, E2 과도 전파율
+- 수집 누락과 U 경계 비율
+- 판정 지연 p50/p95
+- 구성별 이벤트 수, 저장량, 처리량 및 추정·실측 비용
 
-## 8. 논문에 추가할 수 있는 결과 문장
+## 11. 논문에서 유지할 강점과 수정할 표현
 
-> 제안 구조의 AWS feasibility를 확인하기 위해 두 개의 S3 지뢰와 하나의 공유 실행 시점 처리기를 구성하였다. 단일 합성 실행에서 정상 쓰기, HoneyToken 접촉 후 위임 및 중요 데이터 복사, HoneyToken 비접촉 중요 데이터 변환은 각각 `(C,D)=(0,0)`, `(1,1)`, `(0,1)`의 출력 label을 생성하였다. 이 결과는 한 AWS 계정의 제한된 S3/STS 경로에서 공통 처리기를 이용한 C/D 구분과 교차 생성이 가능함을 보인다. 지뢰 수 증가 비용, 반복 정확도, 다중 CSP 이식성은 후속 평가 대상으로 남는다.
+유지할 강점은 HoneyToken을 단순 경보가 아니라 침해 계보의 시작점으로 사용하고, 이를 중요 데이터
+계보와 결합해 조사 우선순위를 만든다는 점이다. 멀티클라우드 공통 모델도 장기적인 확장 기여가 될 수
+있다.
 
-“저비용임을 입증했다”, “침해 범위를 획기적으로 줄였다”, “다중 클라우드에 적용됐다”는 문장은 아직 사용할 수 없다.
+다만 “모든 이동”, “완전한 비가역성”, “실시간 추적”, “멀티클라우드 적용 완료” 같은 표현은 현재
+근거보다 강하다. 대신 다음처럼 제한해 기술한다.
 
-## 9. 개정 논문 권장 목차
+> 본 연구는 기존 클라우드 실행 경로를 변경하지 않고 선택적으로 수집한 감사 이벤트에서 C-/D-Taint
+> 계보를 재구성한다. 직접 인과관계가 있는 경계는 정확 전파하고, 데이터 의존을 관측할 수 없는 경계는
+> 추정 또는 미지원으로 분리한다. 이를 통해 제한된 추가 비용으로 HoneyToken 접촉과 중요 데이터 접근의
+> 최초 교차점을 식별하고 조사 범위 감소 가능성을 평가한다.
 
-1. 문제 정의와 기여: 공유 지뢰 처리, 단조 C/D label, 최초 교차점.
-2. 관련 연구: deception taxonomy, SLEUTH provenance, RTAG cross-host tag, DIFC/reference monitor.
-3. 위협 모델과 신뢰 경계.
-4. 공통 지뢰 명세 및 CSP adapter 계약.
-5. Taint lattice, typed propagation, evidence confidence, intersection 정의.
-6. AWS prototype 구현.
-7. 평가: H1-H5, baseline, 데이터셋·반복·통계 방법.
-8. 결과와 한계.
-9. 다중 CSP 확장과 결론.
-
-## 참고 근거
-
-- M. N. Hossain et al., “SLEUTH: Real-time Attack Scenario Reconstruction from COTS Audit Data,” USENIX Security 2017.
-- Y. Ji et al., “Enabling Refinable Cross-Host Attack Investigation with Efficient Data Flow Tagging and Tracking,” USENIX Security 2018.
-- L. Zhang and V. L. L. Thing, “Three Decades of Deception Techniques in Active Cyber Defense - Retrospect and Outlook,” Computers & Security 106, 2021, Article 102288.
-- M. Krohn et al., “Information Flow Control for Standard OS Abstractions,” SOSP 2007.
-- N. Zeldovich et al., “Securing Distributed Systems with Information Flow Control,” NSDI 2008.
-
-원문 참고문헌의 중복 두 항목은 통합했다. 현재 runtime의 직접 근거와 외부 연구의 결과 수치는 분리해 인용한다.
+이 문장을 논문의 문제 정의, 시스템 설계, 구현, 실험 및 결론이 모두 공유해야 한다.
